@@ -3,18 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TierMaker Pro+</title>
+<title>Tier Studio</title>
 
 <style>
 :root {
     --bg:#0f172a;
-    --text:white;
-    --panel:rgba(255,255,255,0.05);
+    --panel:#1e293b;
+    --text:#e5e7eb;
+    --accent:#6366f1;
 }
+
 .light {
-    --bg:#f1f5f9;
-    --text:#111;
+    --bg:#f8fafc;
     --panel:#e2e8f0;
+    --text:#0f172a;
 }
 
 body {
@@ -24,49 +26,79 @@ body {
     color:var(--text);
 }
 
-h1 { text-align:center; }
-
 .container {
-    max-width:1100px;
+    max-width:1200px;
     margin:auto;
     padding:20px;
 }
 
+h1 {
+    text-align:center;
+}
+
+/* TIER */
 .tier {
+    display:grid;
+    grid-template-columns:90px 1fr;
+    margin-bottom:12px;
+    border-radius:12px;
+    overflow:hidden;
+    transition:0.2s;
+}
+
+.tier:hover {
+    transform:scale(1.01);
+}
+
+.label {
     display:flex;
-    margin-bottom:10px;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    font-weight:bold;
 }
 
 .label input {
     width:70px;
     text-align:center;
-    font-weight:bold;
-    border:none;
     background:transparent;
-    color:var(--text);
+    border:none;
+    color:white;
+    font-weight:bold;
 }
 
+.label input[type=color] {
+    height:25px;
+    border:none;
+}
+
+/* ITEMS */
 .items, .pool {
-    flex:1;
     display:flex;
     flex-wrap:wrap;
-    gap:8px;
+    gap:10px;
     padding:10px;
     background:var(--panel);
-    min-height:80px;
-}
-
-.pool {
-    margin-top:20px;
-    border:2px dashed #666;
+    min-height:90px;
 }
 
 .item {
-    width:70px;
-    height:70px;
-    border-radius:8px;
+    width:75px;
+    height:75px;
+    border-radius:10px;
     overflow:hidden;
+    position:relative;
     cursor:grab;
+    transition:0.2s;
+}
+
+.item:hover {
+    transform:scale(1.1);
+}
+
+.item:active {
+    transform:scale(0.95);
 }
 
 .item img {
@@ -75,6 +107,34 @@ h1 { text-align:center; }
     object-fit:cover;
 }
 
+/* DELETE BUTTON */
+.delete {
+    position:absolute;
+    top:3px;
+    right:3px;
+    background:red;
+    color:white;
+    border:none;
+    border-radius:50%;
+    width:18px;
+    height:18px;
+    font-size:12px;
+    cursor:pointer;
+    opacity:0;
+    transition:0.2s;
+}
+
+.item:hover .delete {
+    opacity:1;
+}
+
+/* POOL */
+.pool {
+    border:2px dashed #555;
+    margin-top:20px;
+}
+
+/* CONTROLS */
 .controls {
     display:flex;
     justify-content:center;
@@ -83,31 +143,43 @@ h1 { text-align:center; }
 }
 
 button {
-    padding:10px;
+    background:var(--accent);
+    color:white;
     border:none;
-    border-radius:6px;
+    padding:10px 14px;
+    border-radius:8px;
     cursor:pointer;
+    transition:0.2s;
+}
+
+button:hover {
+    transform:translateY(-2px);
+}
+
+/* TIER DELETE */
+.remove-tier {
+    background:#ef4444;
+    margin-top:5px;
 }
 </style>
 </head>
 
 <body>
 
-<h1>🔥 TierMaker Pro+</h1>
+<h1>🔥 Tier Studio</h1>
 
 <div class="container" id="tiers"></div>
 
 <h2 style="text-align:center;">Unranked</h2>
 <div class="container">
-    <div class="pool" id="pool"></div>
+    <div id="pool" class="pool"></div>
 </div>
 
 <div class="controls">
     <input type="file" id="upload">
     <button onclick="addTier()">+ Tier</button>
     <button onclick="toggleTheme()">Theme</button>
-    <button onclick="exportImg()">Export PNG</button>
-    <button onclick="generateLink()">Share</button>
+    <button onclick="exportImg()">Export</button>
 </div>
 
 <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
@@ -115,59 +187,7 @@ button {
 <script>
 let dragged=null;
 
-// INIT
-function init() {
-    const urlData = new URLSearchParams(location.search).get("data");
-    if (urlData) {
-        load(JSON.parse(atob(urlData)));
-        return;
-    }
-
-    const saved = JSON.parse(localStorage.getItem("tierlist"));
-    if (saved) load(saved);
-    else ["S","A","B","C","D"].forEach(n=>createTier(n));
-}
-
-// CREATE TIER
-function createTier(name, items=[]) {
-    const tier=document.createElement("div");
-    tier.className="tier";
-
-    const label=document.createElement("div");
-    label.className="label";
-
-    const input=document.createElement("input");
-    input.value=name;
-    input.onchange=save;
-
-    label.appendChild(input);
-
-    const itemsDiv=createDropZone("items");
-
-    tier.appendChild(label);
-    tier.appendChild(itemsDiv);
-
-    document.getElementById("tiers").appendChild(tier);
-
-    items.forEach(src=>itemsDiv.appendChild(createItem(src)));
-}
-
-// DROP ZONE
-function createDropZone(cls) {
-    const div=document.createElement("div");
-    div.className=cls;
-
-    div.addEventListener("dragover",e=>{
-        e.preventDefault();
-        div.appendChild(dragged);
-    });
-
-    div.addEventListener("drop",save);
-
-    return div;
-}
-
-// ITEM
+// CREATE ITEM
 function createItem(src) {
     const div=document.createElement("div");
     div.className="item";
@@ -176,87 +196,147 @@ function createItem(src) {
     const img=document.createElement("img");
     img.src=src;
 
-    div.appendChild(img);
+    const del=document.createElement("button");
+    del.textContent="×";
+    del.className="delete";
+    del.onclick=(e)=>{
+        e.stopPropagation();
+        div.remove();
+        save();
+    };
 
-    div.addEventListener("dragstart",()=>dragged=div);
-    div.addEventListener("dragend",save);
+    div.appendChild(img);
+    div.appendChild(del);
+
+    div.ondragstart=()=>dragged=div;
+    div.ondragend=save;
 
     return div;
 }
 
+// DROP ZONE
+function makeDrop(el) {
+    el.ondragover=e=>{
+        e.preventDefault();
+        el.appendChild(dragged);
+    };
+    el.ondrop=save;
+}
+
+// CREATE TIER
+function createTier(name="NEW", color="#ff0000") {
+    const tier=document.createElement("div");
+    tier.className="tier";
+
+    const label=document.createElement("div");
+    label.className="label";
+    label.style.background=color;
+
+    const input=document.createElement("input");
+    input.value=name;
+
+    const colorInput=document.createElement("input");
+    colorInput.type="color";
+    colorInput.value=color;
+
+    colorInput.oninput=()=>{
+        label.style.background=colorInput.value;
+        save();
+    };
+
+    input.onchange=save;
+
+    const remove=document.createElement("button");
+    remove.textContent="🗑";
+    remove.className="remove-tier";
+    remove.onclick=()=>{
+        tier.remove();
+        save();
+    };
+
+    label.append(input,colorInput,remove);
+
+    const items=document.createElement("div");
+    items.className="items";
+
+    makeDrop(items);
+
+    tier.append(label,items);
+    document.getElementById("tiers").appendChild(tier);
+}
+
 // UPLOAD
 upload.onchange=e=>{
-    const file=e.target.files[0];
-    if(!file) return;
+    const f=e.target.files[0];
+    if(!f) return;
 
     const r=new FileReader();
     r.onload=()=>{
         pool.appendChild(createItem(r.result));
         save();
     };
-    r.readAsDataURL(file);
+    r.readAsDataURL(f);
 };
 
-// SAVE / LOAD
+// SAVE
 function save() {
-    const data=[];
+    const data={
+        tiers:[],
+        pool:[...document.querySelectorAll("#pool img")].map(i=>i.src)
+    };
 
     document.querySelectorAll(".tier").forEach(t=>{
-        data.push({
+        data.tiers.push({
             name:t.querySelector("input").value,
+            color:t.querySelector("input[type=color]").value,
             items:[...t.querySelectorAll("img")].map(i=>i.src)
         });
     });
 
-    const poolItems=[...document.querySelectorAll("#pool img")].map(i=>i.src);
-
-    localStorage.setItem("tierlist", JSON.stringify({tiers:data,pool:poolItems}));
+    localStorage.setItem("tierstudio", JSON.stringify(data));
 }
 
-function load(data) {
-    document.getElementById("tiers").innerHTML="";
-    pool.innerHTML="";
+// LOAD
+function load() {
+    const data=JSON.parse(localStorage.getItem("tierstudio"));
+    if(!data){
+        ["S","A","B","C","D"].forEach(n=>createTier(n));
+        return;
+    }
 
-    data.tiers.forEach(t=>createTier(t.name,t.items));
+    data.tiers.forEach(t=>{
+        createTier(t.name,t.color);
+        const tierEl=document.querySelectorAll(".tier");
+        const last=tierEl[tierEl.length-1].querySelector(".items");
+
+        t.items.forEach(src=>last.appendChild(createItem(src)));
+    });
+
     data.pool.forEach(src=>pool.appendChild(createItem(src)));
 }
 
-// ADD TIER
-function addTier() {
-    createTier("NEW");
-    save();
-}
-
 // THEME
-function toggleTheme() {
+function toggleTheme(){
     document.body.classList.toggle("light");
 }
 
-// EXPORT PNG
-function exportImg() {
-    html2canvas(document.body).then(canvas=>{
-        const link=document.createElement("a");
-        link.download="tierlist.png";
-        link.href=canvas.toDataURL();
-        link.click();
+// EXPORT
+function exportImg(){
+    html2canvas(document.body).then(c=>{
+        const a=document.createElement("a");
+        a.href=c.toDataURL();
+        a.download="tier.png";
+        a.click();
     });
 }
 
-// SHARE LINK
-function generateLink() {
-    const data=localStorage.getItem("tierlist");
-    const encoded=btoa(data);
-    const url=location.origin+location.pathname+"?data="+encoded;
+// INIT
+const pool=document.getElementById("pool");
+makeDrop(pool);
 
-    navigator.clipboard.writeText(url);
-    alert("Link zkopírován!");
-}
+function addTier(){ createTier(); save(); }
 
-// INIT CALL
-const pool=createDropZone("pool");
-document.getElementById("pool").replaceWith(pool);
-
-init();
+load();
 </script>
 
 </body>
